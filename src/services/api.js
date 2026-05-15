@@ -8,14 +8,23 @@ const api = axios.create({
   },
 })
 
-// Request interceptor
+// Request interceptor - Inyecta el JWT token en cada petición 🎫
 api.interceptors.request.use(
   (config) => {
+    // 1. Obtener el token guardado en localStorage
+    const token = localStorage.getItem('userToken')
+    
+    // 2. Si hay token, agregarlo al header Authorization
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
     console.log('📤 REQUEST:', {
       method: config.method.toUpperCase(),
       url: config.url,
       hasData: !!config.data,
-      data: config.data
+      data: config.data,
+      hasAuth: !!token
     })
     return config
   },
@@ -24,7 +33,7 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor
+// Response interceptor - Detecta cuando el token expira
 api.interceptors.response.use(
   (response) => {
     console.log('📥 RESPONSE:', {
@@ -35,6 +44,15 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
+    // Si el servidor devuelve 401, el token expiró o es inválido
+    if (error.response && error.response.status === 401) {
+      console.warn('⚠️ Token expirado o inválido. Sesión cerrada.')
+      // Borrar el token inválido
+      localStorage.removeItem('userToken')
+      // Redirigir al login (si tienes un sistema de navegación)
+      // window.location.href = '/login'
+    }
+    
     console.error('=== ERROR EN API ===')
     console.error('URL:', error.config?.url)
     console.error('Método:', error.config?.method?.toUpperCase())

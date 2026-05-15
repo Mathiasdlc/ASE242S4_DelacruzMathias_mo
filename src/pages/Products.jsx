@@ -266,7 +266,7 @@ export default function Products() {
         }
         console.log('🔄 Editando producto ID:', selectedProduct._id)
         console.log('📤 Enviando datos:', normalizedData)
-        const response = await api.put(`/products/${selectedProduct._id}`, normalizedData)
+        const response = await api.put(`/products/{selectedProduct._id}`, normalizedData)
         console.log('✅ Respuesta PUT:', response.status, response.data)
         toast.success('✓ Actualizado')
       }
@@ -305,9 +305,9 @@ export default function Products() {
   }
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return 'S/ ' + new Intl.NumberFormat('en-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price)
   }
 

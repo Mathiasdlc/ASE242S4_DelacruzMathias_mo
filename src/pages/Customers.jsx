@@ -40,7 +40,6 @@ export default function Customers() {
     try {
       const response = await api.get('/customers')
       setCustomers(response.data || [])
-      toast.success('Customers loaded')
     } catch (error) {
       console.error('Error fetching customers:', error)
       toast.error('Error loading customers')

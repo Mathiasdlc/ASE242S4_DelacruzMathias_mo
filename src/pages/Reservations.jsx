@@ -39,7 +39,6 @@ export default function Reservations() {
     try {
       const response = await api.get('/reservations')
       setReservations(response.data || [])
-      toast.success('Reservations loaded')
     } catch (error) {
       console.error('Error fetching reservations:', error)
       toast.error('Error loading reservations')

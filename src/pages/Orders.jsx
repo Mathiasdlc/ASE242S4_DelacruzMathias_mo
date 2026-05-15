@@ -37,7 +37,6 @@ export default function Orders() {
     try {
       const response = await api.get('/orders')
       setOrders(response.data || [])
-      toast.success('Orders loaded')
     } catch (error) {
       console.error('Error fetching orders:', error)
       toast.error('Error loading orders')
@@ -156,9 +155,9 @@ export default function Orders() {
   }
 
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return 'S/ ' + new Intl.NumberFormat('en-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(price || 0)
   }
 

@@ -37,7 +37,6 @@ export default function TableSpots() {
     try {
       const response = await api.get('/table-spots')
       setTables(response.data || [])
-      toast.success('Tables loaded')
     } catch (error) {
       console.error('Error fetching tables:', error)
       toast.error('Error loading tables')
