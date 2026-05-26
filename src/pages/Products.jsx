@@ -9,6 +9,8 @@ export default function Products() {
   const [filteredProducts, setFilteredProducts] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all') // 'all', 'active', 'inactive'
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10)
   const [loading, setLoading] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -36,8 +38,14 @@ export default function Products() {
     description: '',
     price: '',
     category: '',
+    image_url: '',
+    prep_time: '',
+    nutritional_info: '',
+    stock: 0,
     is_available: true,
   })
+
+  const [formErrors, setFormErrors] = useState({})
 
   useEffect(() => {
     fetchProducts()
@@ -145,6 +153,31 @@ export default function Products() {
     setResultModal({ ...resultModal, isOpen: false })
   }
 
+  // Función para obtener productos de la página actual
+  const getPaginatedProducts = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredProducts.slice(startIndex, endIndex)
+  }
+
+  // Función para obtener el total de páginas
+  const getTotalPages = () => {
+    return Math.ceil(filteredProducts.length / itemsPerPage)
+  }
+
+  // Función para cambiar de página
+  const goToPage = (page) => {
+    const totalPages = getTotalPages()
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page)
+    }
+  }
+
+  // Resetear a página 1 cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter])
+
   const executeConfirmedAction = async () => {
     const { actionType, productId, productName } = confirmationModal
     
@@ -175,7 +208,17 @@ export default function Products() {
 
   const handleOpenCreateModal = () => {
     setModalMode('create')
-    setFormData({ name: '', description: '', price: '', category: '', is_available: true })
+    setFormData({ 
+      name: '', 
+      description: '', 
+      price: '', 
+      category: '', 
+      image_url: '',
+      prep_time: '',
+      nutritional_info: '',
+      stock: 0,
+    })
+    setFormErrors({})
     setIsModalOpen(true)
   }
 
@@ -203,20 +246,31 @@ export default function Products() {
       description: product.description,
       price: product.price,
       category: product.category,
+      image_url: product.image_url || product.imageUrl || '',
+      prep_time: product.prep_time || product.prepTime || '',
+      nutritional_info: product.nutritional_info || product.nutritionalInfo || '',
+      stock: product.stock || 0,
       is_available: product.is_available !== undefined ? product.is_available : product.isAvailable,
-      image_url: product.image_url || product.imageUrl,
-      launch_date: product.launch_date || product.launchDate,
-      prep_time: product.prep_time || product.prepTime,
-      is_featured: product.is_featured !== undefined ? product.is_featured : product.isFeatured,
-      nutritional_info: product.nutritional_info || product.nutritionalInfo,
     })
+    setFormErrors({})
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedProduct(null)
-    setFormData({ name: '', description: '', price: '', category: '', is_available: true })
+    setFormData({ 
+      name: '', 
+      description: '', 
+      price: '', 
+      category: '', 
+      image_url: '',
+      prep_time: '',
+      nutritional_info: '',
+      stock: 0,
+      is_available: true,
+    })
+    setFormErrors({})
   }
 
   const handleInputChange = (e) => {
@@ -225,28 +279,91 @@ export default function Products() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
+    // Limpiar error del campo cuando el usuario empieza a escribir
+    if (formErrors[name]) {
+      setFormErrors((prev) => ({
+        ...prev,
+        [name]: '',
+      }))
+    }
+  }
+
+  const validateForm = () => {
+    const errors = {}
+
+    if (!formData.name?.trim()) {
+      errors.name = 'El nombre del producto es requerido'
+    } else if (formData.name.trim().length < 3) {
+      errors.name = 'El nombre debe tener al menos 3 caracteres'
+    }
+
+    if (!formData.description?.trim()) {
+      errors.description = 'La descripción es requerida'
+    } else if (formData.description.trim().length < 10) {
+      errors.description = 'La descripción debe tener al menos 10 caracteres'
+    }
+
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      errors.price = 'El precio debe ser mayor a 0'
+    }
+
+    if (!formData.category?.trim()) {
+      errors.category = 'La categoría es requerida'
+    }
+
+    if (!formData.image_url?.trim()) {
+      errors.image_url = 'La URL de la imagen es requerida'
+    } else if (!isValidUrl(formData.image_url)) {
+      errors.image_url = 'Ingresa una URL válida (ej: https://example.com/image.jpg)'
+    }
+
+    if (!formData.prep_time?.trim()) {
+      errors.prep_time = 'El tiempo de preparación es requerido'
+    }
+
+    if (!formData.nutritional_info?.trim()) {
+      errors.nutritional_info = 'La información nutricional es requerida'
+    }
+
+    if (formData.stock === '' || formData.stock < 0) {
+      errors.stock = 'El stock debe ser un número válido (≥ 0)'
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const isValidUrl = (string) => {
+    try {
+      new URL(string)
+      return true
+    } catch (_) {
+      return false
+    }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!formData.name || !formData.price) {
-      toast.error('Name and Price are required')
+    // Validar todos los campos
+    if (!validateForm()) {
       return
     }
 
-    // Normalizar datos: convertir snake_case a camelCase para el backend
+    // Normalizar datos: enviar en snake_case como espera el backend
     const normalizedData = {
-      name: formData.name,
-      description: formData.description,
+      name: formData.name.trim(),
+      description: formData.description.trim(),
       price: parseFloat(formData.price),
-      category: formData.category,
-      isAvailable: formData.is_available !== undefined ? formData.is_available : true,
-      imageUrl: formData.image_url || formData.imageUrl || null,
-      launchDate: formData.launch_date || formData.launchDate || null,
-      prepTime: formData.prep_time || formData.prepTime || null,
-      isFeatured: formData.is_featured !== undefined ? formData.is_featured : false,
-      nutritionalInfo: formData.nutritional_info || formData.nutritionalInfo || null,
+      category: formData.category.trim(),
+      image_url: formData.image_url.trim(),
+      prep_time: formData.prep_time.trim(),
+      nutritional_info: formData.nutritional_info.trim(),
+      stock: parseInt(formData.stock) || 0,
+    }
+
+    if (modalMode === 'edit') {
+      normalizedData.is_available = formData.is_available
     }
 
     console.log('=== SUBMIT ===', { modalMode, productId: selectedProduct?._id })
@@ -266,7 +383,7 @@ export default function Products() {
         }
         console.log('🔄 Editando producto ID:', selectedProduct._id)
         console.log('📤 Enviando datos:', normalizedData)
-        const response = await api.put(`/products/{selectedProduct._id}`, normalizedData)
+        const response = await api.put(`/products/${selectedProduct._id}`, normalizedData)
         console.log('✅ Respuesta PUT:', response.status, response.data)
         toast.success('✓ Actualizado')
       }
@@ -410,7 +527,7 @@ export default function Products() {
                 </td>
               </tr>
             ) : (
-              filteredProducts.map((product) => (
+              getPaginatedProducts().map((product) => (
                 <tr
                   key={product._id}
                   className={`border-b border-slate-700 hover:bg-slate-700/30 transition-all transform hover:scale-y-105 cursor-pointer ${
@@ -485,6 +602,55 @@ export default function Products() {
         </table>
       </div>
 
+      {/* Paginación */}
+      {filteredProducts.length > 0 && (
+        <div className="mt-8 flex items-center justify-center gap-2 flex-wrap">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-4 py-2 rounded-lg font-semibold transition-all transform ${
+              currentPage === 1
+                ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                : 'bg-slate-800 text-white hover:bg-slate-700 hover:scale-105'
+            }`}
+          >
+            ← Anterior
+          </button>
+
+          <div className="flex gap-2 flex-wrap justify-center">
+            {Array.from({ length: getTotalPages() }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`w-10 h-10 rounded-lg font-bold transition-all transform ${
+                  currentPage === page
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow-lg scale-110'
+                    : 'bg-slate-800 text-white hover:bg-slate-700 hover:scale-105'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === getTotalPages()}
+            className={`px-4 py-2 rounded-lg font-semibold transition-all transform ${
+              currentPage === getTotalPages()
+                ? 'bg-slate-700 text-slate-500 cursor-not-allowed opacity-50'
+                : 'bg-slate-800 text-white hover:bg-slate-700 hover:scale-105'
+            }`}
+          >
+            Siguiente →
+          </button>
+
+          <div className="w-full text-center mt-2 text-slate-400 text-sm">
+            Página {currentPage} de {getTotalPages()} • Mostrando {getPaginatedProducts().length} de {filteredProducts.length} productos
+          </div>
+        </div>
+      )}
+
       {/* Modal */}
       <Modal
         isOpen={isModalOpen}
@@ -499,21 +665,31 @@ export default function Products() {
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 bg-slate-700 border-2 border-slate-600 hover:border-slate-500 focus:border-amber-400 rounded-lg text-white focus:outline-none transition-all shadow-md"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.name
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
               placeholder="Nombre del producto"
             />
+            {formErrors.name && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.name}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-amber-400 mb-3">Categoría</label>
+            <label className="block text-sm font-bold text-amber-400 mb-3">Categoría *</label>
             <input
               type="text"
               name="category"
               value={formData.category}
               onChange={handleInputChange}
-              className="w-full px-4 py-3 bg-slate-700 border-2 border-slate-600 hover:border-slate-500 focus:border-amber-400 rounded-lg text-white focus:outline-none transition-all shadow-md"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.category
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
               placeholder="p.ej. Bebida, Comida, etc."
             />
+            {formErrors.category && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.category}</p>}
           </div>
 
           <div>
@@ -524,36 +700,117 @@ export default function Products() {
               value={formData.price}
               onChange={handleInputChange}
               step="0.01"
-              className="w-full px-4 py-3 bg-slate-700 border-2 border-slate-600 hover:border-slate-500 focus:border-amber-400 rounded-lg text-white focus:outline-none transition-all shadow-md"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.price
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
               placeholder="0.00"
             />
+            {formErrors.price && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.price}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-amber-400 mb-3">Descripción</label>
+            <label className="block text-sm font-bold text-amber-400 mb-3">Descripción *</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
               rows="3"
-              className="w-full px-4 py-3 bg-slate-700 border-2 border-slate-600 hover:border-slate-500 focus:border-amber-400 rounded-lg text-white focus:outline-none transition-all shadow-md resize-none"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md resize-none ${
+                formErrors.description
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
               placeholder="Describe tu producto..."
             />
+            {formErrors.description && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.description}</p>}
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+          <div>
+            <label className="block text-sm font-bold text-amber-400 mb-3">URL de Imagen *</label>
             <input
-              type="checkbox"
-              id="is_available"
-              name="is_available"
-              checked={formData.is_available}
+              type="text"
+              name="image_url"
+              value={formData.image_url}
               onChange={handleInputChange}
-              className="w-5 h-5 cursor-pointer accent-amber-400"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.image_url
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
+              placeholder="https://example.com/image.jpg"
             />
-            <label htmlFor="is_available" className="text-sm text-slate-200 cursor-pointer font-medium">
-              Disponible para venta
-            </label>
+            {formErrors.image_url && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.image_url}</p>}
           </div>
+
+          <div>
+            <label className="block text-sm font-bold text-amber-400 mb-3">Tiempo de Preparación *</label>
+            <input
+              type="text"
+              name="prep_time"
+              value={formData.prep_time}
+              onChange={handleInputChange}
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.prep_time
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
+              placeholder="p.ej. 15 minutos"
+            />
+            {formErrors.prep_time && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.prep_time}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-amber-400 mb-3">Información Nutricional *</label>
+            <textarea
+              name="nutritional_info"
+              value={formData.nutritional_info}
+              onChange={handleInputChange}
+              rows="2"
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md resize-none ${
+                formErrors.nutritional_info
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
+              placeholder="p.ej. Proteína: 35g, Calorías: 450, Grasas: 12g"
+            />
+            {formErrors.nutritional_info && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.nutritional_info}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-amber-400 mb-3">Stock *</label>
+            <input
+              type="number"
+              name="stock"
+              value={formData.stock}
+              onChange={handleInputChange}
+              className={`w-full px-4 py-3 bg-slate-700 border-2 rounded-lg text-white focus:outline-none transition-all shadow-md ${
+                formErrors.stock
+                  ? 'border-red-500 focus:border-red-400'
+                  : 'border-slate-600 hover:border-slate-500 focus:border-amber-400'
+              }`}
+              placeholder="0"
+              min="0"
+            />
+            {formErrors.stock && <p className="text-red-400 text-xs mt-2">⚠️ {formErrors.stock}</p>}
+          </div>
+
+          {modalMode === 'edit' && (
+            <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+              <input
+                type="checkbox"
+                id="is_available"
+                name="is_available"
+                checked={formData.is_available}
+                onChange={handleInputChange}
+                className="w-5 h-5 cursor-pointer accent-amber-400"
+              />
+              <label htmlFor="is_available" className="text-sm text-slate-200 cursor-pointer font-medium">
+                Disponible para venta
+              </label>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button
